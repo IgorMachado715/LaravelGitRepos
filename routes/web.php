@@ -2,8 +2,12 @@
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\GitHubController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\CommitController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Socialite\Facades\Socialite;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -37,7 +41,12 @@ Route::get('/auth/github/callback', function () {
  
     Auth::login($user);
  
-    return view('/dashboard');
+    return redirect()->route('github.repos', ['username' => $githubUser->nickname]);
 });
+
+Route::get('/github/repos/{username}', [GitHubController::class, 'fetchReposAndCommits'])->name('github.repos');
+Route::get('/api/commits/{repository}', [CommitController::class, 'getCommitsData']);
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
 
 require __DIR__.'/auth.php';
