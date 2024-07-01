@@ -12,10 +12,3 @@ export default defineConfig({
         }),
     ],
 });
-
-mix.options({
-    hmrOptions: {
-        host: 'laravelgitrepos-production-bfe9.up.railway.app',
-        port: 443
-    }
-});
