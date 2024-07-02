@@ -29,33 +29,26 @@ class GitHubController extends Controller
                 'user_id' => $user->id,
             ]);
 
-            // Fetch commits
-            $page = 1;
-            do {
-                $commitsResponse = Http::withToken($token)->get("https://api.github.com/repos/{$username}/{$repo['name']}/commits", [
-                    'per_page' => 100,
-                    'page' => $page,
+            // Fetch the latest commit in the repository
+            $latestCommit = Commit::where('repository_id', $repository->id)->orderBy('date', 'desc')->first();
+
+            $since = $latestCommit ? Carbon::parse($latestCommit->date)->toIso8601String() : null;
+
+            $commitsResponse = Http::withToken($token)->get("https://api.github.com/repos/{$username}/{$repo['name']}/commits", [
+                'since' => $since,
+            ]);
+
+            $commits = $commitsResponse->json();
+
+            foreach ($commits as $commit) {
+                Commit::updateOrCreate([
+                    'sha' => $commit['sha'],
+                ], [
+                    'message' => $commit['commit']['message'],
+                    'repository_id' => $repository->id,
+                    'date' => Carbon::parse($commit['commit']['author']['date'])->toDateTimeString(),
                 ]);
-                $commits = $commitsResponse->json();
-
-                if (empty($commits)) {
-                    break;
-                }
-
-                foreach ($commits as $commit) {
-                    if (isset($commit['commit']['author']['date'])) {
-                        Commit::updateOrCreate([
-                            'sha' => $commit['sha'],
-                        ], [
-                            'message' => $commit['commit']['message'],
-                            'repository_id' => $repository->id,
-                            'date' => Carbon::parse($commit['commit']['author']['date'])->toDateTimeString(),
-                        ]);
-                    }
-                }
-
-                $page++;
-            } while (!empty($commits));
+            }
         }
 
         return redirect()->route('dashboard');
