@@ -44,7 +44,7 @@ Route::get('/auth/github/callback', function () {
     return redirect()->route('github.repos', ['username' => $githubUser->nickname]);
 });
 
-Route::get('/github/repos', [GitHubController::class, 'fetchReposAndCommits'])->name('github.repos');
+Route::get('/github/repos/{username}', [GitHubController::class, 'fetchReposAndCommits'])->name('github.repos');
 Route::get('/api/commits/{repository}', [CommitController::class, 'getCommitsData']);
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
