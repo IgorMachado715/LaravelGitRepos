@@ -13,8 +13,8 @@ class DashboardController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $repositories = Cache::remember("user_4_repositories", 60 * 60, function () use ($user) {
-            return Repository::where('user_id', 4)->get();
+        $repositories = Cache::remember("user_{$user->id}_repositories", 60 * 60, function () use ($user) {
+            return Repository::where('user_id', $user->id)->get();
         });
 
         return view('dashboard', compact('repositories'));
