@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Commit;
-use App\Models\Repository;
 use Carbon\Carbon;
 
 class CommitController extends Controller
@@ -16,21 +15,29 @@ class CommitController extends Controller
             ->where('date', '>=', Carbon::now()->subMonths(2)->startOfMonth())
             ->get();
 
-        $commitsPerMonth = $commits->groupBy(function ($commit) {
-            return Carbon::parse($commit->date)->format('Y-m');
+        
+        $commitsPerDay = $commits->groupBy(function ($commit) {
+            return Carbon::parse($commit->date)->format('Y-m-d');
         })->map->count();
 
-        $months = [];
-        $counts = [];
         
+        $labels = [];
+        $counts = [];
+
         for ($i = 2; $i >= 0; $i--) {
-            $month = Carbon::now()->subMonths($i)->format('Y-m');
-            $months[] = Carbon::now()->subMonths($i)->format('F');
-            $counts[] = $commitsPerMonth->get($month, 0);
+            $startOfMonth = Carbon::now()->subMonths($i)->startOfMonth();
+            $endOfMonth = Carbon::now()->subMonths($i)->endOfMonth();
+            $monthName = Carbon::now()->subMonths($i)->format('F');
+
+            for ($date = $startOfMonth; $date->lte($endOfMonth); $date->addDay()) {
+                $day = $date->format('Y-m-d');
+                $labels[] = $date->format('d') . ' ' . $monthName;
+                $counts[] = $commitsPerDay->get($day, 0);
+            }
         }
 
         return response()->json([
-            'labels' => $months,
+            'labels' => $labels,
             'counts' => $counts,
         ]);
     }

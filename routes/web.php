@@ -24,7 +24,7 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/auth/github/redirect', function () {
-    return Socialite::driver('github')->stateless()->redirect();
+    return Socialite::driver('github')->stateless()->scopes(['repo'])->redirect();
 });
  
 Route::get('/auth/github/callback', function () {

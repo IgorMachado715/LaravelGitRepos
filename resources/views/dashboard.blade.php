@@ -6,7 +6,6 @@
     </x-slot>
 
     <style>
-        
         select {
             border: 1px solid #ccc;
             border-radius: 4px;
@@ -27,6 +26,17 @@
             margin-top: 1rem;
             color: #777;
         }
+
+        .commits-info {
+            font-size: 1rem;
+            text-align: center;
+            margin-top: 1rem;
+            color: #333;
+        }
+
+        .commits-info span {
+            display: block;
+        }
     </style>
 
     <div class="py-12">
@@ -45,7 +55,9 @@
                     </select>
                 </div>
                 <div class="p-6">
+                    <div id="commitDays" class="commits-info"></div>
                     <canvas id="commitsChart"></canvas>
+                    <div id="commitMonths" class="commits-info"></div>
                     <p class="no-commits-message" id="noCommitsMessage" style="display: none;">No commits found in the last 3 months.</p>
                 </div>
             </div>
@@ -69,6 +81,8 @@
 
                     if (data.counts.length === 0 || data.counts.every(count => count === 0)) {
                         document.getElementById('noCommitsMessage').style.display = 'block';
+                        document.getElementById('commitDays').innerText = '';
+                        document.getElementById('commitMonths').innerText = '';
                         return;
                     } else {
                         document.getElementById('noCommitsMessage').style.display = 'none';
