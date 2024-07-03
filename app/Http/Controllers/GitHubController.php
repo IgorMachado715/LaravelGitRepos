@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Repository;
-use App\Models\Commit;
+use App\Models\Repository; 
+use App\Models\Commit; 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -17,17 +17,17 @@ class GitHubController extends Controller
         $user = Auth::user();
         $token = $user->github_token;
 
-        // Fetch repositories
+        
         $reposResponse = Http::withToken($token)->get("https://api.github.com/users/{$username}/repos");
+
+        if (!$reposResponse->successful()) {
+            Log::error('Failed to fetch repositories', ['response' => $reposResponse->body()]);
+            continue;
+        }
+
         $repos = $reposResponse->json();
 
         foreach ($repos as $repo) {
-            // Handle errors in fetching repositories
-            if (!is_array($repo) || isset($repo['message'])) {
-                Log::error('Failed to fetch repository data', ['repo' => $repo]);
-                continue; // Skip this repository and move to the next one
-            }
-
             $repository = Repository::updateOrCreate([
                 'github_id' => $repo['id'],
             ], [
@@ -36,33 +36,35 @@ class GitHubController extends Controller
                 'user_id' => $user->id,
             ]);
 
-            // Fetch the latest commit in the repository
             $latestCommit = Commit::where('repository_id', $repository->id)->orderBy('date', 'desc')->first();
+
             $since = $latestCommit ? Carbon::parse($latestCommit->date)->toIso8601String() : null;
 
-            // Fetch commits
             $commitsResponse = Http::withToken($token)->get("https://api.github.com/repos/{$username}/{$repo['name']}/commits", [
                 'since' => $since,
             ]);
 
-            // Handle errors in fetching commits
-            if ($commitsResponse->failed()) {
-                Log::error('Failed to fetch commits', ['repo' => $repo['name'], 'status' => $commitsResponse->status()]);
-                continue; // Skip this repository's commits and move to the next repository
+            if (!$commitsResponse->successful()) {
+                Log::error('Failed to fetch commits', ['response' => $commitsResponse->body(), 'repo' => $repo['name']]);
+                continue;
             }
 
             $commits = $commitsResponse->json();
 
             foreach ($commits as $commit) {
-                if (is_array($commit) && isset($commit['sha'])) {
-                    Commit::updateOrCreate([
-                        'sha' => $commit['sha'],
-                    ], [
-                        'message' => $commit['commit']['message'],
-                        'repository_id' => $repository->id,
-                        'date' => Carbon::parse($commit['commit']['author']['date'])->toDateTimeString(),
-                    ]);
+               
+                if (!is_array($commit) || !isset($commit['sha'], $commit['commit']['message'], $commit['commit']['author']['date'])) {
+                    Log::error('Invalid commit data', ['commit' => $commit]);
+                    continue;
                 }
+
+                Commit::updateOrCreate([
+                    'sha' => $commit['sha'],
+                ], [
+                    'message' => $commit['commit']['message'],
+                    'repository_id' => $repository->id,
+                    'date' => Carbon::parse($commit['commit']['author']['date'])->toDateTimeString(),
+                ]);
             }
         }
 
