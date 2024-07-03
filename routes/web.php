@@ -48,5 +48,9 @@ Route::get('/github/repos/{username}', [GitHubController::class, 'fetchReposAndC
 Route::get('/api/commits/{repository}', [CommitController::class, 'getCommitsData']);
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+Route::fallback(function () {
+    return view('errors/4xx');
+});
+
 
 require __DIR__.'/auth.php';
