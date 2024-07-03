@@ -17,7 +17,7 @@ class GitHubController extends Controller
         $user = Auth::user();
         $token = $user->github_token;
 
-        // Fetch repositories from GitHub
+        
         $reposResponse = Http::withToken($token)->get("https://api.github.com/users/{$username}/repos");
 
         if (!$reposResponse->successful()) {
@@ -46,7 +46,7 @@ class GitHubController extends Controller
                 'user_id' => $user->id,
             ]);
 
-            // Fetch commits for the repository
+           
             $latestCommit = Commit::where('repository_id', $repository->id)->orderBy('date', 'desc')->first();
             $since = $latestCommit ? Carbon::parse($latestCommit->date)->toIso8601String() : null;
 
@@ -83,10 +83,5 @@ class GitHubController extends Controller
         }
 
         return redirect()->route('dashboard')->with('status', 'Repositories and commits updated successfully.');
-    }
-}
-        }
-
-        return redirect()->route('dashboard');
     }
 }
