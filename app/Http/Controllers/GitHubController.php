@@ -8,24 +8,17 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Repository; 
 use App\Models\Commit; 
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class GitHubController extends Controller
 {
-    public function fetchReposAndCommits()
+    public function fetchReposAndCommits($username)
     {
         $user = Auth::user();
         $username = env('GITHUB_CLIENT_USERNAME');
         $token = env('GITHUB_CLIENT_TOKEN');
 
-        
+        // Fetch repositories
         $reposResponse = Http::withToken($token)->get("https://api.github.com/users/{$username}/repos");
-
-        if (!$reposResponse->successful()) {
-            Log::error('Failed to fetch repositories', ['response' => $reposResponse->body()]);
-            return redirect()->route('dashboard')->with('error', 'Failed to fetch repositories.');
-        }
-
         $repos = $reposResponse->json();
 
         foreach ($repos as $repo) {
@@ -37,6 +30,7 @@ class GitHubController extends Controller
                 'user_id' => $user->id,
             ]);
 
+            // Fetch the latest commit in the repository
             $latestCommit = Commit::where('repository_id', $repository->id)->orderBy('date', 'desc')->first();
 
             $since = $latestCommit ? Carbon::parse($latestCommit->date)->toIso8601String() : null;
@@ -45,20 +39,9 @@ class GitHubController extends Controller
                 'since' => $since,
             ]);
 
-            if (!$commitsResponse->successful()) {
-                Log::error('Failed to fetch commits', ['response' => $commitsResponse->body(), 'repo' => $repo['name']]);
-                continue;
-            }
-
             $commits = $commitsResponse->json();
 
             foreach ($commits as $commit) {
-               
-                if (!is_array($commit) || !isset($commit['sha'], $commit['commit']['message'], $commit['commit']['author']['date'])) {
-                    Log::error('Invalid commit data', ['commit' => $commit]);
-                    continue;
-                }
-
                 Commit::updateOrCreate([
                     'sha' => $commit['sha'],
                 ], [
