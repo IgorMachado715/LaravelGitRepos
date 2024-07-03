@@ -18,11 +18,7 @@ class GitHubController extends Controller
         $token = $user->github_token;
 
         
-<<<<<<< HEAD
         $reposResponse = Http::withToken($token)->get("https://api.github.com/user/repos");
-=======
-        $reposResponse = Http::withToken($token)->get("https://api.github.com/users/{$username}/repos");
->>>>>>> 95e93a3df273ba481ed9fdf35de76cb65197b4fd
 
         if (!$reposResponse->successful()) {
             Log::error('Failed to fetch repositories', ['response' => $reposResponse->body()]);
@@ -42,10 +38,7 @@ class GitHubController extends Controller
                 continue;
             }
 
-<<<<<<< HEAD
             
-=======
->>>>>>> 95e93a3df273ba481ed9fdf35de76cb65197b4fd
             $repository = Repository::updateOrCreate([
                 'github_id' => $repo['id'],
             ], [
@@ -54,11 +47,7 @@ class GitHubController extends Controller
                 'user_id' => $user->id,
             ]);
 
-<<<<<<< HEAD
             
-=======
-           
->>>>>>> 95e93a3df273ba481ed9fdf35de76cb65197b4fd
             $latestCommit = Commit::where('repository_id', $repository->id)->orderBy('date', 'desc')->first();
             $since = $latestCommit ? Carbon::parse($latestCommit->date)->toIso8601String() : null;
 
@@ -85,10 +74,7 @@ class GitHubController extends Controller
                     continue;
                 }
 
-<<<<<<< HEAD
-                
-=======
->>>>>>> 95e93a3df273ba481ed9fdf35de76cb65197b4fd
+               
                 Commit::updateOrCreate([
                     'sha' => $commit['sha'],
                 ], [
