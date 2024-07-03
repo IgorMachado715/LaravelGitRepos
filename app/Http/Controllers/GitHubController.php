@@ -11,7 +11,7 @@ use Carbon\Carbon;
 
 class GitHubController extends Controller
 {
-    public function fetchReposAndCommits($username)
+    public function fetchReposAndCommits()
     {
         $user = Auth::user();
         $username = env('GITHUB_CLIENT_USERNAME');
