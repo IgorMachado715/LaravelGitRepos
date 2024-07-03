@@ -15,7 +15,7 @@ class GitHubController extends Controller
     public function fetchReposAndCommits($username)
     {
         $user = Auth::user();
-        $username= env('GITHUB_CLIENT_USERNAME');
+        $username = env('GITHUB_CLIENT_USERNAME');
         $token = env('GITHUB_CLIENT_TOKEN');
 
         
