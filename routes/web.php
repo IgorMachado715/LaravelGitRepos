@@ -34,6 +34,7 @@ Route::get('/auth/github/callback', function () {
         'github_id' => $githubUser->id,
     ], [
         'name' => $githubUser->name,
+        'username' => $githubUser->nickname,
         'email' => $githubUser->email,
         'github_token' => $githubUser->token,
         'github_refresh_token' => $githubUser->refreshToken,
@@ -45,8 +46,10 @@ Route::get('/auth/github/callback', function () {
 });
 
 Route::get('/github/repos/{username}', [GitHubController::class, 'fetchReposAndCommits'])->name('github.repos');
-Route::get('/api/commits/{repository}', [CommitController::class, 'getCommitsData']);
+Route::get('/commits/{repository}', [CommitController::class, 'getCommitsData']);
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+Route::get('/repositories', [GitHubController::class, 'refetchReposAndCommits'])->name('github.refetchReposAndCommits');
+
 
 Route::fallback(function () {
     return view('errors/4xx');
