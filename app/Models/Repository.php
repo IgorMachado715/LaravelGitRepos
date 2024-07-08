@@ -11,8 +11,7 @@ class Repository extends Model
 
     protected $fillable = [
         'user_id',
-        'github_id',
         'name',
-        'url',
+        'commit_count',
     ];
 }

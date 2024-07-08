@@ -6,143 +6,79 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use App\Models\Repository; 
-use App\Models\Commit; 
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
+use App\Models\Repository;
+use App\Jobs\FetchCommitsJob;
 
-class GitHubController extends Controller
+class GithubController extends Controller
 {
-    public function fetchReposAndCommits($username)
+    public function fetchRepos()
     {
         $user = Auth::user();
         $token = $user->github_token;
+
+        $repos = [];
+
         
-        $reposResponse = Http::withToken($token)->get("https://api.github.com/user/repos");
-        if (!$reposResponse->successful()) {
-            Log::error('Failed to fetch repositories', ['response' => $reposResponse->body()]);
-            return redirect()->route('dashboard')->withErrors('Failed to fetch repositories from GitHub.');
-        }
-        $repos = $reposResponse->json();
-        if (!is_array($repos)) {
-            Log::error('Invalid repositories response', ['response' => $repos]);
-            return redirect()->route('dashboard')->withErrors('Invalid response from GitHub.');
-        }
-        foreach ($repos as $repo) {
-            if (!is_array($repo) || !isset($repo['id'], $repo['name'], $repo['html_url'])) {
-                Log::error('Invalid repository data', ['repo' => $repo]);
-                continue;
-            }
-            
-            $repository = Repository::updateOrCreate([
-                'github_id' => $repo['id'],
-            ], [
-                'name' => $repo['name'],
-                'url' => $repo['html_url'],
-                'user_id' => $user->id,
+        $page = 1;
+        do {
+            $response = Http::withToken($token)->get('https://api.github.com/user/repos', [
+                'page' => $page,
+                'per_page' => 100
             ]);
-            $since = Carbon::now()->subDays(90)->toIso8601String();
-            $commitsResponse = Http::withToken($token)->get("https://api.github.com/repos/{$username}/{$repo['name']}/commits", [
-                'since' => $since,
-            ]);
-            if (!$commitsResponse->successful()) {
-                Log::error('Failed to fetch commits', ['response' => $commitsResponse->body(), 'repo' => $repo['name']]);
-                continue;
-            }
-            $commits = $commitsResponse->json();
-            if (!is_array($commits)) {
-                Log::error('Invalid commits response', ['response' => $commits, 'repo' => $repo['name']]);
-                continue;
-            }
-            foreach ($commits as $commit) {
-                if (!is_array($commit) || !isset($commit['sha'], $commit['commit']['message'], $commit['commit']['author']['date'])) {
-                    Log::error('Invalid commit data', ['commit' => $commit]);
-                    continue;
-                }
-               
-                Commit::updateOrCreate([
-                    'sha' => $commit['sha'],
-                ], [
-                    'message' => $commit['commit']['message'],
-                    'repository_id' => $repository->id,
-                    'date' => Carbon::parse($commit['commit']['author']['date'])->toDateTimeString(),
+            $userRepos = $response->json();
+            $repos = array_merge($repos, $userRepos);
+            $page++;
+        } while (count($userRepos) == 100);
+
+        
+        $orgs = Http::withToken($token)->get('https://api.github.com/user/orgs')->json();
+        foreach ($orgs as $org) {
+            $page = 1;
+            do {
+                $response = Http::withToken($token)->get("https://api.github.com/orgs/{$org['login']}/repos", [
+                    'page' => $page,
+                    'per_page' => 100
                 ]);
-            }
+                $orgRepos = $response->json();
+                $repos = array_merge($repos, $orgRepos);
+                $page++;
+            } while (count($orgRepos) == 100);
         }
-        Cache::forget("user_{$user->id}_repositories");
+
         
-        return redirect()->route('dashboard')->with('status', 'Repositories and commits updated successfully.');
+        foreach ($repos as $repo) {
+            Repository::updateOrCreate(
+                ['name' => $repo['full_name'], 'user_id' => $user->id],
+                ['commit_count' => 0] 
+            );
+        }
+
+        $repositories = Repository::where('user_id', $user->id)->get();
+
+        return view('dashboard', compact('repositories'));
     }
 
-    public function refetchReposAndCommits()
-{
-    $user = Auth::user();
-    $username = $user->username;
-    $token = $user->github_token;
-    
-    $reposResponse = Http::withToken($token)->get("https://api.github.com/user/repos");
-    if (!$reposResponse->successful()) {
-        Log::error('Failed to fetch repositories', ['response' => $reposResponse->body()]);
-        return response()->json(['error' => 'Failed to fetch repositories from GitHub.'], 500);
-    }
-    $repos = $reposResponse->json();
-    if (!is_array($repos)) {
-        Log::error('Invalid repositories response', ['response' => $repos]);
-        return response()->json(['error' => 'Invalid response from GitHub.'], 500);
-    }
-    $allRepositories = [];
-    foreach ($repos as $repo) {
-        if (!is_array($repo) || !isset($repo['id'], $repo['name'], $repo['html_url'])) {
-            Log::error('Invalid repository data', ['repo' => $repo]);
-            continue;
+    public function getCommits($repositoryId)
+    {
+        $repository = Repository::find($repositoryId);
+        if (!$repository) {
+            return response()->json([]);
         }
+
+        $user = Auth::user();
+        $token = $user->github_token;
+
         
-        $repository = Repository::updateOrCreate([
-            'github_id' => $repo['id'],
-        ], [
-            'name' => $repo['name'],
-            'url' => $repo['html_url'],
-            'user_id' => $user->id,
-        ]);
+        if (Cache::has("commits_{$repositoryId}")) {
+            $commitsData = Cache::get("commits_{$repositoryId}");
+        } else {
+            
+            FetchCommitsJob::dispatch($repository, $token);
 
-        $since = Carbon::now()->subDays(90)->toIso8601String();
-        $commitsResponse = Http::withToken($token)->get("https://api.github.com/repos/{$username}/{$repo['name']}/commits", [
-            'since' => $since,
-        ]);
-        if (!$commitsResponse->successful()) {
-            Log::error('Failed to fetch commits', ['response' => $commitsResponse->body(), 'repo' => $repo['name']]);
-            continue;
-        }
-        $commits = $commitsResponse->json();
-        if (!is_array($commits)) {
-            Log::error('Invalid commits response', ['response' => $commits, 'repo' => $repo['name']]);
-            continue;
-        }
-        foreach ($commits as $commit) {
-            if (!is_array($commit) || !isset($commit['sha'], $commit['commit']['message'], $commit['commit']['author']['date'])) {
-                Log::error('Invalid commit data', ['commit' => $commit]);
-                continue;
-            }
-           
-            Commit::updateOrCreate([
-                'sha' => $commit['sha'],
-            ], [
-                'message' => $commit['commit']['message'],
-                'repository_id' => $repository->id,
-                'date' => Carbon::parse($commit['commit']['author']['date'])->toDateTimeString(),
-            ]);
+            
+            return response()->json(['message' => 'Commits data is being fetched. Please try again later.']);
         }
 
-        $repositoryData = [
-            'id' => $repository->id,
-            'name' => $repository->name,
-            'url' => $repository->url,
-            'commits' => $commits,
-        ];
-        $allRepositories[] = $repositoryData;
+        return response()->json($commitsData);
     }
-    Cache::forget("user_{$user->id}_repositories");
-
-    return response()->json($allRepositories);
-}
 }

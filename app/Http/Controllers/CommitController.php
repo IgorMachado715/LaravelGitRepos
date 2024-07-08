@@ -1,37 +1,38 @@
 <?php
+
 namespace App\Http\Controllers;
-use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use App\Models\Commit;
+use App\Models\Repository;
 use Carbon\Carbon;
+
 class CommitController extends Controller
 {
-   public function getCommitsData($repositoryId)
-{
-    $startDate = Carbon::now()->subDays(89); 
-    $endDate = Carbon::now();
+    public function getCommitsData($repositoryId)
+    {
+        $repository = Repository::findOrFail($repositoryId);
+        $commits = Commit::where('repository_id', $repositoryId)
+            ->where('date', '>=', Carbon::now()->subDays(90))
+            ->orderBy('date')
+            ->get();
 
-    $commits = Commit::where('repository_id', $repositoryId)
-        ->whereBetween('date', [$startDate->startOfDay(), $endDate->endOfDay()])
-        ->get()
-        ->groupBy(function ($commit) {
-            return Carbon::parse($commit->date)->format('Y-m-d');
-        });
+        $commitCountsByDay = [];
+        foreach ($commits as $commit) {
+            $date = $commit->date->format('Y-m-d');
+            if (!isset($commitCountsByDay[$date])) {
+                $commitCountsByDay[$date] = 0;
+            }
+            $commitCountsByDay[$date]++;
+        }
 
-    $labels = [];
-    $counts = [];
-    $currentDate = $startDate->copy();
+        $labels = array_keys($commitCountsByDay);
+        $counts = array_values($commitCountsByDay);
 
-    while ($currentDate->lte($endDate)) {
-        $day = $currentDate->format('Y-m-d');
-        $labels[] = $currentDate->format('d M'); 
-        $counts[] = $commits->get($day, collect())->count();
-        $currentDate->addDay();
+        return response()->json([
+            'labels' => $labels,
+            'counts' => $counts,
+        ]);
     }
-
-    return response()->json([
-        'labels' => $labels,
-        'counts' => $counts,
-    ]);
-}
 }
